@@ -1,0 +1,50 @@
+{
+  "name": "dsh-liquid-glass",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Apple-style liquid-glass surfaces for the DeepSeek Harness Web UI: translucent window chrome, a readable frosted composer with a lit edge, and a specular window rim.",
+  "license": "MIT",
+  "author": "kriszhu1024 (https://github.com/kriszhu1024)",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "cordis-plugin",
+    "plugin",
+    "theme",
+    "liquid-glass",
+    "vibrancy",
+    "macos"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kriszhu1024/dsh-liquid-glass.git"
+  },
+  "homepage": "https://github.com/kriszhu1024/dsh-liquid-glass#readme",
+  "bugs": {
+    "url": "https://github.com/kriszhu1024/dsh-liquid-glass/issues"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-theme"
+      ]
+    }
+  }
+}
