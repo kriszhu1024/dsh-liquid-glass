@@ -64,6 +64,7 @@ window.__ModuleLoader__.load({
       rim: 1.75, // 窗口内沿高光强度倍数
       radius: 1.1, // 圆角倍数 (bases 14 / 18 / 24 / 32 px)
       settings: 0, // 设置面板灰度深度: 0 = 官方色, 1 = 最深
+      bubble: '#007aff', // 自己的消息气泡颜色 (文字色按对比度自动选黑/白)
     };
 
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -73,6 +74,15 @@ window.__ModuleLoader__.load({
       const channel = (hex, i) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
       const at = (i) => Math.round(channel(from, i) + (channel(to, i) - channel(from, i)) * t);
       return `rgb(${at(0)}, ${at(1)}, ${at(2)})`;
+    };
+
+    /** Relative luminance decides whether a bubble needs dark or light type. */
+    const contrastOn = (hex) => {
+      const channel = (i) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+      const linear = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+      const luminance =
+        0.2126 * linear(channel(0)) + 0.7152 * linear(channel(1)) + 0.0722 * linear(channel(2));
+      return luminance > 0.45 ? '#0f1115' : '#ffffff';
     };
 
     // ---------------------------------------------------------------- store
@@ -85,7 +95,13 @@ window.__ModuleLoader__.load({
         const parsed = JSON.parse(raw);
         for (const key of Object.keys(DEFAULTS)) {
           const value = parsed === null ? undefined : parsed[key];
-          if (typeof value === 'number' && Number.isFinite(value)) kept[key] = value;
+          if (key === 'bubble') {
+            if (typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)) {
+              kept[key] = value.toLowerCase();
+            }
+          } else if (typeof value === 'number' && Number.isFinite(value)) {
+            kept[key] = value;
+          }
         }
       } catch (error) {
         /* unreadable storage: fall back to the shipped values */
@@ -138,6 +154,8 @@ window.__ModuleLoader__.load({
       '--lg-radius': String(clamp(v.radius, 0.4, 2.4)),
       '--lg-settings-light': mixHex('#ffffff', '#f0f1f4', clamp(v.settings, 0, 1)),
       '--lg-settings-dark': mixHex('#2c2c2e', '#1b1b1c', clamp(v.settings, 0, 1)),
+      '--lg-bubble': v.bubble,
+      '--lg-bubble-text': contrastOn(v.bubble),
     });
 
     const themeTokens = (v) => ({
@@ -169,13 +187,36 @@ window.__ModuleLoader__.load({
        * no alias token carries, so the stylesheet owns them and sliders move
        * them without a theme round-trip. Every reference below has a fallback,
        * so the sheet is already correct before the first variable write.
+       *
+       * The html qualifier is not decoration: the theme declares
+       * --dsw-specific-bubble on body and its dark value on
+       * body[data-ds-dark-theme], so a bare body rule loses in dark mode
+       * whatever the sheet order. html body (0,0,2) and
+       * html body[data-ds-dark-theme] (0,1,2) both outrank those deterministically.
        */
-      body {
+      html body {
         --dsw-radius-md: calc(14px * var(--lg-radius, 1));
         --dsw-radius-lg: calc(18px * var(--lg-radius, 1));
         --dsw-radius-xl: calc(24px * var(--lg-radius, 1));
         --dsw-radius-panel: calc(32px * var(--lg-radius, 1));
         --dsw-corner-shape: superellipse(1.6);
+        --dsw-specific-bubble: var(--lg-bubble, #007aff);
+      }
+      html body[data-ds-dark-theme] {
+        --dsw-specific-bubble: var(--lg-bubble, #007aff);
+      }
+
+      /*
+       * User-authored bubbles. Three components paint --dsw-specific-bubble —
+       * the chat message, the goal card and the question card — and all three
+       * take their type colour from the global label token, which is why the
+       * bubble needs its own text colour: on a saturated fill, label-primary is
+       * the wrong ink in one of the two schemes. The body qualifier outranks the
+       * component rule whatever order the sheets load in; the text colour comes
+       * from the fill's relative luminance.
+       */
+      body [class*='_bubble'] {
+        color: var(--lg-bubble-text, #ffffff);
       }
 
       /*
@@ -391,6 +432,15 @@ window.__ModuleLoader__.load({
         margin: 0;
         accent-color: var(--dsw-alias-brand-primary);
       }
+      [data-lg-panel] input[type='color'] {
+        width: 100%;
+        height: 26px;
+        padding: 2px;
+        border: 0.5px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-sm);
+        background: transparent;
+        cursor: pointer;
+      }
     `;
 
     // ------------------------------------------------------------- components
@@ -464,6 +514,21 @@ window.__ModuleLoader__.load({
         row('rim', '窗口内沿高光', `${Math.round(v.rim * 100)}%`, 0, 2, 0.05),
         row('radius', '圆角大小', `${v.radius.toFixed(2)}×`, 0.6, 1.8, 0.05),
         row('settings', '设置面板灰度', `${Math.round(v.settings * 100)}%`, 0, 1, 0.05),
+        h(
+          'label',
+          { className: 'lg-row' },
+          h(
+            'span',
+            { className: 'lg-rowHead' },
+            h('span', { className: 'lg-rowLabel' }, '我的气泡颜色'),
+            h('span', { className: 'lg-rowValue' }, v.bubble),
+          ),
+          h('input', {
+            type: 'color',
+            value: v.bubble,
+            onChange: (event) => set({ bubble: event.currentTarget.value }),
+          }),
+        ),
       );
     };
 
