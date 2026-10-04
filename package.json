@@ -1,8 +1,8 @@
 {
   "name": "dsh-liquid-glass",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
-  "description": "Apple-style liquid-glass surfaces for the DeepSeek Harness Web UI, with a live slider panel: translucent window chrome, a frosted composer with a lit edge, and a specular window rim.",
+  "description": "Apple-style liquid-glass surfaces for the DeepSeek Harness Web UI, with a live control panel: translucent window chrome, a frosted composer with a lit edge, a specular window rim, and iMessage-style user bubbles.",
   "license": "MIT",
   "author": "kriszhu1024 (https://github.com/kriszhu1024)",
   "keywords": [

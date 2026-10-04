@@ -65,6 +65,9 @@ window.__ModuleLoader__.load({
       radius: 1.1, // 圆角倍数 (bases 14 / 18 / 24 / 32 px)
       settings: 0, // 设置面板灰度深度: 0 = 官方色, 1 = 最深
       bubble: '#007aff', // 自己的消息气泡颜色 (文字色按对比度自动选黑/白)
+      tail: true, // iMessage 式气泡形状: 尾巴 + 尾侧平角 + 同消息合并角
+      groupGap: 2, // 连续同侧消息之间的间距 (px)
+      bubbleRadius: 1, // 气泡圆角倍数 (基准 var(--dsw-radius-xl))
     };
 
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -99,6 +102,8 @@ window.__ModuleLoader__.load({
             if (typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)) {
               kept[key] = value.toLowerCase();
             }
+          } else if (key === 'tail') {
+            if (typeof value === 'boolean') kept[key] = value;
           } else if (typeof value === 'number' && Number.isFinite(value)) {
             kept[key] = value;
           }
@@ -156,6 +161,8 @@ window.__ModuleLoader__.load({
       '--lg-settings-dark': mixHex('#2c2c2e', '#1b1b1c', clamp(v.settings, 0, 1)),
       '--lg-bubble': v.bubble,
       '--lg-bubble-text': contrastOn(v.bubble),
+      '--lg-bubble-radius': String(clamp(v.bubbleRadius, 0.4, 2.4)),
+      '--lg-group-gap': `${Math.round(clamp(v.groupGap, 0, 12))}px`,
     });
 
     const themeTokens = (v) => ({
@@ -217,6 +224,73 @@ window.__ModuleLoader__.load({
        */
       body [class*='_bubble'] {
         color: var(--lg-bubble-text, #ffffff);
+      }
+
+      /*
+       * iMessage-style user bubbles: a tail on the last bubble of a message, and
+       * a tighter gap between consecutive messages.
+       *
+       * The tail is measured off a real iMessage bubble rather than eyeballed, and
+       * the measurement settled two things that earlier attempts got wrong:
+       *
+       * 1. iMessage does NOT flatten the tail-side corner. The bubble keeps its
+       *    full radius on all four corners, and the tail is purely additive,
+       *    tucked UNDER the bottom-right corner. Flattening the corner and
+       *    bolting a wedge onto it is what made the first attempts look wrong.
+       * 2. The tail starts exactly at the corner arc's foot on the bottom edge
+       *    (one corner radius left of the right edge), hangs about a third of a
+       *    radius below the bubble, drifts slightly right as it descends, and
+       *    tapers to a point that sits just inside the bubble's right edge. It
+       *    never overhangs horizontally, so it cannot push a scrollbar.
+       *
+       * border-radius cannot draw it (rounding a small square gives a rounded
+       * square) and a mask bite leaves a rectangle; a clip-path wedge is the
+       * shape. The path's coordinates come from the measured outline scaled to
+       * this bubble's radius: a 28x10 box at right:0/bottom:-10px holds the whole
+       * tail below the corner.
+       *
+       * Everything is scoped to body[data-lg-tail], which the panel toggles, so
+       * switching the shape off leaves the component untouched.
+       */
+      body[data-lg-tail] [data-chat-flow-kind='user'] [class*='_bubble'] {
+        border-radius: calc(var(--dsw-radius-xl) * var(--lg-bubble-radius, 1));
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
+      }
+      body[data-lg-tail] [data-chat-flow-kind='user'] [class*='_bubble']:last-child {
+        position: relative;
+      }
+      body[data-lg-tail] [data-chat-flow-kind='user'] [class*='_bubble']:last-child::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        bottom: -10px;
+        width: 28px;
+        height: 10px;
+        background: var(--dsw-specific-bubble);
+        clip-path: path('M0,0 L14.3,0 C14.6,3.2 15.8,6.6 16.8,10 C12.2,9 5.4,4.6 0,0 Z');
+        pointer-events: none;
+      }
+
+      /*
+       * A run of messages from the same side reads as one group. DSH owns the
+       * rhythm through --dsh-chat-flow-gap, resolved on the later sibling, so
+       * this overrides the value rather than the margin.
+       */
+      body :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])
+        + :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering']) {
+        --dsh-chat-flow-gap: var(--lg-group-gap, 2px);
+      }
+
+      /* User-message timestamps drop to the secondary scale, iMessage-like. */
+      body [data-chat-flow-kind='user'] [class*='_timeStart'],
+      body [data-chat-flow-kind='user'] [class*='_timeEnd'] {
+        font-size: 11px;
+        color: var(--dsw-alias-label-caption);
+      }
+
+      /* The bubble column is a little narrower than the transcript column. */
+      body [class*='_userStack'] {
+        max-width: min(calc(var(--dsh-chat-content-width, 748px) * 0.66), 78%);
       }
 
       /*
@@ -441,6 +515,16 @@ window.__ModuleLoader__.load({
         background: transparent;
         cursor: pointer;
       }
+      [data-lg-panel] .lg-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      [data-lg-panel] input[type='checkbox'] {
+        margin: 0;
+        accent-color: var(--dsw-alias-brand-primary);
+      }
     `;
 
     // ------------------------------------------------------------- components
@@ -529,6 +613,18 @@ window.__ModuleLoader__.load({
             onChange: (event) => set({ bubble: event.currentTarget.value }),
           }),
         ),
+        h(
+          'label',
+          { className: 'lg-check' },
+          h('input', {
+            type: 'checkbox',
+            checked: v.tail,
+            onChange: (event) => set({ tail: event.currentTarget.checked }),
+          }),
+          h('span', null, '气泡尾巴（iMessage 式）'),
+        ),
+        row('bubbleRadius', '气泡圆角', `${v.bubbleRadius.toFixed(2)}×`, 0.6, 1.8, 0.05),
+        row('groupGap', '连续消息间距', `${Math.round(v.groupGap)}px`, 0, 12, 1),
       );
     };
 
@@ -563,9 +659,13 @@ window.__ModuleLoader__.load({
         );
 
         const pushVariables = (v) => {
-          const style = document.body.style;
+          const body = document.body;
           const variables = cssVariables(v);
-          for (const name of Object.keys(variables)) style.setProperty(name, variables[name]);
+          for (const name of Object.keys(variables)) body.style.setProperty(name, variables[name]);
+          // The bubble shape is a block of rules, not a value: an attribute
+          // scopes it so switching it off restores the component's own radii.
+          if (v.tail === true) body.setAttribute('data-lg-tail', '');
+          else body.removeAttribute('data-lg-tail');
         };
 
         const pushTokens = () => {
