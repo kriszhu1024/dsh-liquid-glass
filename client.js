@@ -221,8 +221,13 @@ window.__ModuleLoader__.load({
        * the wrong ink in one of the two schemes. The body qualifier outranks the
        * component rule whatever order the sheets load in; the text colour comes
        * from the fill's relative luminance.
+       *
+       * The :not(span) is load-bearing, not cosmetic: the Tooltip primitive
+       * renders its bubble as a span whose compiled class also ends in _bubble.
+       * Painting the tooltip with a user bubble's ink turns it illegible when the
+       * fill is light, and it is a hover surface that must be left alone.
        */
-      body [class*='_bubble'] {
+      body [class*='_bubble']:not(span) {
         color: var(--lg-bubble-text, #ffffff);
       }
 
@@ -251,15 +256,26 @@ window.__ModuleLoader__.load({
        *
        * Everything is scoped to body[data-lg-tail], which the panel toggles, so
        * switching the shape off leaves the component untouched.
+       *
+       * Scoped through the bubble COLUMN, never by the class suffix alone. A
+       * hover tooltip's compiled class also ends in _bubble, and it is the last
+       * child of the message actions row, so a bare
+       * [class*='_bubble']:last-child rule captured it: the tooltip's
+       * position:fixed became relative, which turned it into an in-flow flex item
+       * of the actions row (+40px plus the 8px gap = the row grew by exactly
+       * 48px), pushed every right-aligned action sideways, and made the pointer
+       * leave the button it was hovering. Hovering and unhovering then repeated
+       * that at frame rate. The user stack contains message bubbles and nothing
+       * else, so the child combinator cannot reach a tooltip.
        */
-      body[data-lg-tail] [data-chat-flow-kind='user'] [class*='_bubble'] {
+      body[data-lg-tail] [data-chat-flow-kind='user'] [class*='_userStack'] > [class*='_bubble'] {
         border-radius: calc(var(--dsw-radius-xl) * var(--lg-bubble-radius, 1));
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
       }
-      body[data-lg-tail] [data-chat-flow-kind='user'] [class*='_bubble']:last-child {
+      body[data-lg-tail] [data-chat-flow-kind='user'] [class*='_userStack'] > [class*='_bubble']:last-child {
         position: relative;
       }
-      body[data-lg-tail] [data-chat-flow-kind='user'] [class*='_bubble']:last-child::after {
+      body[data-lg-tail] [data-chat-flow-kind='user'] [class*='_userStack'] > [class*='_bubble']:last-child::after {
         content: '';
         position: absolute;
         right: 0;
@@ -291,6 +307,43 @@ window.__ModuleLoader__.load({
       /* The bubble column is a little narrower than the transcript column. */
       body [class*='_userStack'] {
         max-width: min(calc(var(--dsh-chat-content-width, 748px) * 0.66), 78%);
+      }
+
+      /*
+       * Reserve the tail's height under the bubble column. The tail hangs 10px
+       * below the bubble while the row's own gap is 6px, so it used to reach
+       * about 4px into the message actions row on the right — right on top of the
+       * copy button. The bubble is positioned and the row is not, so the tail
+       * also won the paint order and covered the top of the button. Giving the
+       * stack bottom padding keeps the tail's shape and hands the row its own
+       * space, and it keeps the tail inside its container instead of contributing
+       * scrollable overflow.
+       */
+      body[data-lg-tail] [data-chat-flow-kind='user'] [class*='_userStack'] {
+        padding-bottom: 10px;
+      }
+
+      /*
+       * Hover flicker, fixed at its source. A message actions row is only as wide
+       * as its buttons, but a hover surface inside it (a tooltip, a popover) sits
+       * outside that box: measured on a live page, the row was 126px wide with a
+       * scroll width of 771. That overflow propagates all the way up —
+       * row -> user row -> flow item -> transcript column -> scroll body — and
+       * gives the transcript a horizontal scrollbar, which takes width AND height
+       * at the same moment. The element under the pointer therefore moves, the
+       * pointer leaves it, the surface unmounts, the scrollbar goes away, and the
+       * cycle repeats at frame rate: the button shakes sideways and the composer
+       * is pushed up and down.
+       *
+       * Two rules, both overflow-x: clip rather than hidden, so neither element
+       * becomes a scroll container, and neither clips a portal or a
+       * position:fixed surface — an ancestor's clip does not apply to a
+       * descendant whose containing block is outside it, which is exactly how
+       * the tooltip is positioned.
+       */
+      body [class*='_actions'],
+      body [data-conversation-scroll] {
+        overflow-x: clip;
       }
 
       /*

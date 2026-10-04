@@ -100,6 +100,7 @@ dsh plugin install github:kriszhu1024/dsh-liquid-glass
 - 参数存在**本机浏览器**里（localStorage），不会跟着账号或机器走。
 - 「重置」把所有值还原成上表的出厂值。
 - 想改**出厂值本身**：改 [`client.js`](client.js) 里的 `DEFAULTS`（新安装与「重置」都用它）。
+- 开启「气泡尾巴」时，气泡与下方时间/操作行之间会多出 **10px** —— 那是留给尾巴的高度，关掉尾巴即恢复原间距。
 
 ## 工作原理
 
